@@ -65,6 +65,8 @@ impl Lang {
 }
 
 pub struct Strings {
+    // 此份字串所屬的語言
+    pub lang: Lang,
     // ---- 共用 / 視窗 ----
     pub app_title: &'static str,
     pub tab_sign: &'static str,
@@ -229,20 +231,22 @@ impl Strings {
     }
 
     pub fn summary(&self, total: usize, ok: usize, failed: usize) -> String {
-        if std::ptr::eq(self, &ZH_TW) {
-            format!("共 {total} 個檔案：成功 {ok}、失敗 {failed}")
-        } else {
-            format!("{total} file(s): {ok} succeeded, {failed} failed")
+        match self.lang {
+            Lang::ZhTw => format!("共 {total} 個檔案：成功 {ok}、失敗 {failed}"),
+            Lang::En => format!("{total} file(s): {ok} succeeded, {failed} failed"),
         }
     }
 
     pub fn years(&self, n: u32) -> String {
-        if std::ptr::eq(self, &ZH_TW) {
-            format!("{n} 年")
-        } else if n == 1 {
-            "1 year".into()
-        } else {
-            format!("{n} years")
+        match self.lang {
+            Lang::ZhTw => format!("{n} 年"),
+            Lang::En => {
+                if n == 1 {
+                    "1 year".into()
+                } else {
+                    format!("{n} years")
+                }
+            }
         }
     }
 }
@@ -258,6 +262,7 @@ pub fn format_time(unix: i64) -> String {
 }
 
 pub static ZH_TW: Strings = Strings {
+    lang: Lang::ZhTw,
     app_title: "code-signer 程式碼簽章工具",
     tab_sign: "簽章",
     tab_verify: "驗證",
@@ -366,6 +371,7 @@ pub static ZH_TW: Strings = Strings {
 };
 
 pub static EN: Strings = Strings {
+    lang: Lang::En,
     app_title: "code-signer",
     tab_sign: "Sign",
     tab_verify: "Verify",
@@ -536,5 +542,11 @@ mod tests {
         assert_eq!(Lang::En.strings().years(1), "1 year");
         assert_eq!(Lang::ZhTw.strings().years(5), "5 年");
         assert_eq!(format_time(946_684_800), "2000-01-01 00:00:00 UTC");
+    }
+
+    #[test]
+    fn strings_know_their_language() {
+        assert_eq!(Lang::ZhTw.strings().lang, Lang::ZhTw);
+        assert_eq!(Lang::En.strings().lang, Lang::En);
     }
 }

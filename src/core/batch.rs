@@ -40,17 +40,47 @@ pub fn expand_paths(inputs: &[PathBuf], recursive: bool) -> Vec<PathBuf> {
     out
 }
 
+/// Windows 屬性旗標：FILE_ATTRIBUTE_REPARSE_POINT。
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+
+/// 目錄項是否為 reparse point（例如 junction）：`entry.metadata()` 不追隨連結，
+/// 直接看該項本身的屬性。
+fn is_reparse_point(entry: &std::fs::DirEntry) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    entry
+        .metadata()
+        .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+        .unwrap_or(false)
+}
+
+/// 是否為簽章時產生的殘留暫存檔（正常流程會自行清除，只有中途中斷才會留下）。
+fn is_leftover_temp_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.contains(".code-signer-tmp."))
+}
+
 fn collect_dir(dir: &Path, recursive: bool, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
+        // 用 `entry.file_type()`（不追隨連結）判斷，而非 `path.is_dir()`（會追隨
+        // 連結／junction），避免 junction 迴圈造成無窮遞迴、堆疊溢位。
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
         let path = entry.path();
-        if path.is_dir() {
-            if recursive {
+        if file_type.is_dir() {
+            // Windows junction 不會被判定為 symlink，需另外用 reparse point
+            // 屬性偵測，遞迴時跳過它。
+            if recursive && !is_reparse_point(&entry) {
                 collect_dir(&path, true, out);
             }
-        } else if is_supported(&path) {
+        } else if is_supported(&path) && !is_leftover_temp_file(&path) {
             out.push(path);
         }
     }
@@ -129,6 +159,17 @@ mod tests {
                 root.join("sub").join("c.msi")
             ]
         );
+    }
+
+    #[test]
+    fn skips_leftover_temp_files_from_interrupted_signing() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        touch(&root.join("a.exe"));
+        touch(&root.join(".a.exe.code-signer-tmp.exe"));
+
+        let got = expand_paths(&[root.to_path_buf()], false);
+        assert_eq!(got, vec![root.join("a.exe")]);
     }
 
     #[test]

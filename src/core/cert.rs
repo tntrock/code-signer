@@ -394,19 +394,25 @@ fn load_pfx(path: &Path, password: &str) -> Result<LoadedCert, CoreError> {
     }
 }
 
-/// 解析指紋：允許空白與冒號、不分大小寫，必須是 40 個十六進位字元（SHA-1）。
+/// 解析指紋：允許空白、冒號與 certmgr 複製時常帶的方向控制字元（U+200E/U+200F），
+/// 不分大小寫，必須是 40 個十六進位字元（SHA-1）。
+///
+/// 在確認每個剩餘字元都是 ASCII 十六進位、且數量剛好 40 個之前，不會做任何位元組切片，
+/// 避免非 ASCII 字元造成切在多位元組字元中間而 panic。
 pub fn parse_thumbprint(s: &str) -> Result<[u8; 20], CoreError> {
     let hex: String = s
         .chars()
-        .filter(|c| !c.is_whitespace() && *c != ':')
+        .filter(|c| !c.is_whitespace() && !matches!(c, ':' | '\u{200E}' | '\u{200F}'))
         .collect();
-    if hex.len() != 40 {
+    if hex.chars().count() != 40 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(CoreError::InvalidThumbprint);
     }
+    // 到這裡 hex 已確定只含 ASCII 十六進位字元，逐位元組切片安全。
+    let bytes = hex.as_bytes();
     let mut out = [0u8; 20];
     for (i, byte) in out.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16)
-            .map_err(|_| CoreError::InvalidThumbprint)?;
+        let pair = std::str::from_utf8(&bytes[i * 2..i * 2 + 2]).expect("ascii checked above");
+        *byte = u8::from_str_radix(pair, 16).map_err(|_| CoreError::InvalidThumbprint)?;
     }
     Ok(out)
 }
@@ -549,6 +555,20 @@ mod tests {
             Err(CoreError::InvalidThumbprint)
         );
         assert_eq!(parse_thumbprint(&"ab".repeat(20)).unwrap(), [0xAB; 20]);
+    }
+
+    #[test]
+    fn parse_thumbprint_strips_ltr_rtl_marks_copied_from_certmgr() {
+        let t = format!("\u{200E}{}", "d4".repeat(20));
+        assert_eq!(parse_thumbprint(&t).unwrap()[..1], [0xD4]);
+    }
+
+    #[test]
+    fn parse_thumbprint_rejects_multibyte_char_without_panicking() {
+        // 37 個十六進位字元 + 一個多位元組字元 + 1 個十六進位字元：
+        // 位元組長度恰好 40，但字元數只有 39 個；不應 panic，且應回傳錯誤。
+        let s = format!("{}{}{}", "a".repeat(37), "é", "b");
+        assert_eq!(parse_thumbprint(&s), Err(CoreError::InvalidThumbprint));
     }
 
     #[test]

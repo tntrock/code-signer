@@ -3,5 +3,7 @@
 pub mod batch;
 pub mod cert;
 pub mod error;
+pub mod signer;
+pub mod verify;
 
 pub use error::CoreError;

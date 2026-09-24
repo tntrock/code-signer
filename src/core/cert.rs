@@ -269,7 +269,6 @@ pub struct LoadedCert {
     pub summary: CertSummary,
 }
 
-#[allow(dead_code)]
 impl LoadedCert {
     pub(crate) fn store(&self) -> HCERTSTORE {
         self.store

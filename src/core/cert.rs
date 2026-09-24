@@ -228,7 +228,7 @@ impl StoreLocation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum CertSource {
     Pfx {
         path: PathBuf,
@@ -238,6 +238,26 @@ pub enum CertSource {
         thumbprint: String,
         location: StoreLocation,
     },
+}
+
+impl std::fmt::Debug for CertSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CertSource::Pfx { path, password: _ } => f
+                .debug_struct("Pfx")
+                .field("path", &path)
+                .field("password", &"***")
+                .finish(),
+            CertSource::Store {
+                thumbprint,
+                location,
+            } => f
+                .debug_struct("Store")
+                .field("thumbprint", &thumbprint)
+                .field("location", &location)
+                .finish(),
+        }
+    }
 }
 
 /// 已載入、可用於簽章的憑證。持有 Win32 資源，Drop 時釋放。
@@ -665,5 +685,23 @@ mod tests {
             }),
             Err(CoreError::CertNotYetValid)
         );
+    }
+
+    #[test]
+    fn cert_source_debug_redacts_password() {
+        let src_pfx = CertSource::Pfx {
+            path: PathBuf::from("test.pfx"),
+            password: Secret::new("hunter2-secret".into()),
+        };
+        let debug_str = format!("{src_pfx:?}");
+        assert!(!debug_str.contains("hunter2-secret"));
+        assert!(debug_str.contains("***"));
+
+        let src_store = CertSource::Store {
+            thumbprint: "00".repeat(20),
+            location: StoreLocation::CurrentUser,
+        };
+        let debug_str = format!("{src_store:?}");
+        assert!(debug_str.contains("0000"));
     }
 }

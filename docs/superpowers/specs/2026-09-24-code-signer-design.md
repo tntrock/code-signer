@@ -1,7 +1,7 @@
 # code-signer 設計文件
 
 - 日期：2026-09-24
-- 狀態：待審閱
+- 狀態：已核准（2026-09-24）；介面細節以實作計畫 `docs/superpowers/plans/2026-09-24-code-signer.md` 為準
 - Repo：`tntrock/code-signer`（公開）
 - 本機路徑：`D:\VSCode\code-signer`
 
@@ -38,7 +38,7 @@
 | CLI | `clap`（derive） | 標準做法 |
 | Win32 API | `windows` crate | 官方型別綁定：`SignerSignEx2`、`WinVerifyTrust`、CryptoAPI 憑證存放區 |
 | 產生憑證 | `rsa` + `rcgen` + `p12-keystore` | 純 Rust：`rsa` 產生 RSA 金鑰（`rcgen` 預設後端 ring 無法產生 RSA 金鑰，而 aws-lc-rs 後端在 Windows 需 cmake/nasm），`rcgen` 簽出 X.509，`p12-keystore` 匯出 PKCS#12；`rsa` 與 `p12-keystore` 皆已用於 `cert-converter` |
-| 其他 | `serde` / `serde_json`（設定檔、`--json`）、`thiserror`（core 錯誤）、`anyhow`（外層）、`rpassword`（CLI 密碼輸入） | |
+| 其他 | `serde` / `serde_json`（設定檔、`--json`）、`thiserror`（core 錯誤）、`x509-parser` + `sha1`/`sha2`（憑證摘要與指紋）、`zeroize`（密碼）、`rpassword`（CLI 密碼輸入） | |
 
 簽章與驗證**直接呼叫 Windows 原生 API**，不依賴 PowerShell 或 Windows SDK 的 `signtool`。
 
@@ -107,13 +107,14 @@ pub struct NewCertParams {
     pub out_path: PathBuf,
     pub password: SecretString,
 }
-pub fn create_self_signed(p: &NewCertParams) -> Result<CertSummary, CoreError>;
+pub fn create_self_signed(p: &NewCertParams) -> Result<CreatedCert, CoreError>; // CreatedCert { summary, der }
 pub fn install_trust(cert_der: &[u8]) -> Result<(), CoreError>; // CurrentUser Root + TrustedPublisher
 
-pub fn expand_paths(inputs: &[PathBuf], recursive: bool) -> (Vec<PathBuf>, Vec<(PathBuf, CoreError)>);
-pub fn run_batch<F>(files: &[PathBuf], op: F, progress: impl FnMut(BatchEvent))
-    -> BatchSummary
-where F: Fn(&Path) -> Result<FileOutcome, CoreError>;
+// 資料夾展開並排序；其他路徑原樣保留，錯誤由後續操作逐檔回報
+pub fn expand_paths(inputs: &[PathBuf], recursive: bool) -> Vec<PathBuf>;
+pub fn run_batch<T>(files: &[PathBuf], cancel: &AtomicBool,
+    op: impl FnMut(&Path) -> Result<T, CoreError>,
+    on_result: impl FnMut(usize, &FileResult<T>)) -> Vec<FileResult<T>>;
 ```
 
 `VerifyReport`：
@@ -135,7 +136,7 @@ pub struct VerifyReport {
 1. 確認副檔名受支援
 2. 在同一資料夾複製成暫存檔 `.<原檔名>.code-signer-tmp`
 3. 對暫存檔呼叫 `SignerSignEx2`：SHA-256、`SIGNER_CERT_STORE_INFO` 帶入憑證；若有時間戳記 URL，使用 `SIGNER_TIMESTAMP_RFC3161` 與 SHA-256
-4. 成功 → 以 `MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)` 取代原檔
+4. 成功 → 以 `std::fs::rename` 取代原檔（在 Windows 上即 `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`）
 5. 任何一步失敗 → 刪除暫存檔，原檔不變，回傳錯誤
 
 時間戳記失敗視為簽章失敗，不會退回成無時間戳記的簽章。
@@ -146,7 +147,7 @@ pub struct VerifyReport {
 - 檔案層級錯誤只影響該檔案，其餘繼續處理
 - 資料夾展開時只收以下副檔名（不分大小寫）：`.exe .dll .sys .ocx .msi .cab .cat .ps1 .psm1`；直接指定的檔案若副檔名不支援，回報為該檔案錯誤
 - 依序處理（不平行），避免同一資料夾內同時寫檔與時間戳記伺服器限流
-- 進度以 `BatchEvent { index, total, path, result }` 回報；GUI 經由 channel 接收
+- 每處理完一個檔案呼叫 `on_result(索引, FileResult)`；GUI 在工作執行緒中把它轉成 channel 訊息
 
 ### 4.3 驗證
 
@@ -202,8 +203,10 @@ code-signer new-cert --cn <NAME> --out <FILE.pfx>
   "command": "verify",
   "results": [
     { "path": "D:\\build\\app.exe", "ok": false, "status": "untrusted_root",
-      "message": "根憑證不受信任", "signer": { "cn": "Allen Test", "sha256": "…" },
-      "timestamp": "2026-09-24T10:00:00Z" }
+      "message": "根憑證不受信任 — Allen Test",
+      "signer": { "subject_cn": "Allen Test", "organization": null, "issuer_cn": "Allen Test",
+                  "sha1": "…", "sha256": "…", "not_before": 1790000000, "not_after": 1884000000 },
+      "timestamp": "2026-09-24 10:00:00 UTC" }
   ],
   "summary": { "total": 1, "succeeded": 0, "failed": 1 }
 }
@@ -253,6 +256,8 @@ code-signer new-cert --cn <NAME> --out <FILE.pfx>
 |---|---|
 | `PfxWrongPassword` | `.pfx` 密碼錯誤 |
 | `PfxInvalid` | 檔案不是有效的 PKCS#12 |
+| `PfxNoSigningCert` | `.pfx` 中沒有含私鑰的憑證 |
+| `InvalidThumbprint` | 指紋不是 40 個十六進位字元 |
 | `CertNotFound` | 存放區找不到指定指紋 |
 | `CertNoPrivateKey` | 憑證沒有私鑰 |
 | `CertNotCodeSigning` | EKU 不含 Code Signing |
@@ -262,6 +267,7 @@ code-signer new-cert --cn <NAME> --out <FILE.pfx>
 | `TimestampFailed` | 時間戳記伺服器無法連線或回應錯誤 |
 | `UserCancelled` | 使用者拒絕信任清單確認視窗 |
 | `OutputExists` | 產生憑證時輸出檔已存在且未允許覆寫 |
+| `EmptyCommonName` / `PasswordTooShort` / `InvalidValidity` | 產生憑證的輸入檢查 |
 | `Win32 { hresult, message }` | 其他：顯示 `0x%08X` 與系統訊息（`FormatMessageW`） |
 
 Win32 資源（`CERT_CONTEXT`、`HCERTSTORE`、WinTrust 狀態）以 RAII 包裝，在 `Drop` 中釋放。所有 `unsafe` 集中在 `core/` 內的小函式，並附上前置條件註解。
@@ -277,7 +283,7 @@ Win32 資源（`CERT_CONTEXT`、`HCERTSTORE`、WinTrust 狀態）以 RAII 包裝
   5. 錯誤密碼 → `PfxWrongPassword`，樣本檔內容與簽章前完全相同
   6. 未簽樣本 → `Unsigned`
   7. 時間戳記測試需連網，標記 `#[ignore]`
-- **CLI 測試**：`assert_cmd` 執行 exe，檢查 exit code 0 / 1 / 2 與 `--json` 結構
+- **CLI 測試**：以 `std::process::Command` 執行 `CARGO_BIN_EXE_code-signer`，檢查 exit code 0 / 1 / 2 與 `--json` 結構
 - **GUI**：手動檢查三個分頁、拖放、語言切換、雙擊啟動時沒有主控台殘留
 
 ## 10. Repo 與 CI

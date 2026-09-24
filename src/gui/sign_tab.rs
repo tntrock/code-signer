@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Receiver, TryRecvError};
 use std::sync::Arc;
 
 use eframe::egui;
@@ -56,7 +56,7 @@ pub struct SignTab {
     rows: Vec<Row>,
     use_store: bool,
     pfx_path: String,
-    password: String,
+    password: Secret,
     store_certs: Option<Result<Vec<CertSummary>, CoreError>>,
     store_thumbprint: Option<String>,
     ts_enabled: bool,
@@ -75,7 +75,7 @@ impl SignTab {
                 .as_ref()
                 .map(|p| p.display().to_string())
                 .unwrap_or_default(),
-            password: String::new(),
+            password: Secret::new(String::new()),
             store_certs: None,
             store_thumbprint: s.store_thumbprint.clone(),
             ts_enabled: s.timestamp_enabled,
@@ -120,20 +120,29 @@ impl SignTab {
     fn poll(&mut self) {
         let Some(worker) = &self.worker else { return };
         let mut finished = false;
-        while let Ok(msg) = worker.rx.try_recv() {
-            match msg {
-                Msg::CertLoaded => {
+        loop {
+            match worker.rx.try_recv() {
+                Ok(Msg::CertLoaded) => {
                     for row in &mut self.rows {
                         row.state = RowState::Pending;
                     }
                 }
-                Msg::Started(i) => self.rows[i].state = RowState::Running,
-                Msg::Finished(i, r) => self.rows[i].state = RowState::Done(r),
-                Msg::SetupFailed(e) => {
+                Ok(Msg::Started(i)) => self.rows[i].state = RowState::Running,
+                Ok(Msg::Finished(i, r)) => self.rows[i].state = RowState::Done(r),
+                Ok(Msg::SetupFailed(e)) => {
                     self.notice = Some(Notice::Setup(e));
                     finished = true;
                 }
-                Msg::AllDone => finished = true,
+                Ok(Msg::AllDone) => {
+                    finished = true;
+                }
+                Err(TryRecvError::Empty) => break,
+                // 工作執行緒中斷卻沒送出任何結果（例如 dev build 下 panic）：
+                // 視為結束，避免 UI 永遠卡在忙碌狀態。
+                Err(TryRecvError::Disconnected) => {
+                    finished = true;
+                    break;
+                }
             }
         }
         if finished {
@@ -176,7 +185,7 @@ impl SignTab {
         } else {
             Some(CertSource::Pfx {
                 path: PathBuf::from(self.pfx_path.trim()),
-                password: Secret::new(self.password.clone()),
+                password: self.password.clone(),
             })
         }
     }
@@ -383,7 +392,7 @@ impl SignTab {
                             }
                             ui.label(t.password);
                             ui.add(
-                                egui::TextEdit::singleline(&mut self.password)
+                                egui::TextEdit::singleline(&mut *self.password)
                                     .password(true)
                                     .desired_width(140.0),
                             );

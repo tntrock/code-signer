@@ -29,6 +29,7 @@ struct Row {
 }
 
 enum Msg {
+    CertLoaded,
     Started(usize),
     Finished(usize, Result<(), CoreError>),
     SetupFailed(CoreError),
@@ -121,6 +122,11 @@ impl SignTab {
         let mut finished = false;
         while let Ok(msg) = worker.rx.try_recv() {
             match msg {
+                Msg::CertLoaded => {
+                    for row in &mut self.rows {
+                        row.state = RowState::Pending;
+                    }
+                }
                 Msg::Started(i) => self.rows[i].state = RowState::Running,
                 Msg::Finished(i, r) => self.rows[i].state = RowState::Done(r),
                 Msg::SetupFailed(e) => {
@@ -186,9 +192,6 @@ impl SignTab {
             return false;
         };
         self.notice = None;
-        for row in &mut self.rows {
-            row.state = RowState::Pending;
-        }
         let paths: Vec<PathBuf> = self.rows.iter().map(|r| r.path.clone()).collect();
         let opts = SignOptions {
             timestamp_url: (self.ts_enabled && !self.ts_url.trim().is_empty())
@@ -208,6 +211,8 @@ impl SignTab {
                     return;
                 }
             };
+            let _ = tx.send(Msg::CertLoaded);
+            ctx.request_repaint();
             let mut next = 0usize;
             run_batch(
                 &paths,

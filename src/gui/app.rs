@@ -103,17 +103,23 @@ impl eframe::App for App {
 
         egui::CentralPanel::default_margins().show(ui, |ui| match self.tab {
             Tab::Sign => {
-                if self.sign.ui(ui, t) {
-                    self.save_settings();
-                }
+                self.sign.ui(ui, t);
             }
             Tab::Verify => self.verify.ui(ui, t),
             Tab::Cert => {
                 if let Some(path) = self.cert.ui(ui, t) {
                     self.sign.set_pfx(path);
-                    self.save_settings();
                 }
             }
         });
+
+        // 任何一項會被儲存的設定（憑證來源選擇、時間戳記、語言）有變動時，
+        // 在同一影格內存檔，避免使用者未按「開始簽章」就關閉程式而遺失變更。
+        let mut next = self.settings.clone();
+        self.sign.write_settings(&mut next);
+        next.lang = Some(self.lang.code().into());
+        if next != self.settings {
+            self.save_settings();
+        }
     }
 }

@@ -11,13 +11,14 @@ Windows 用的 Authenticode 程式碼簽章工具。單一 exe，同時提供圖
 ## 功能
 
 - **簽章**：`.exe` `.dll` `.sys` `.ocx` `.msi` `.cab` `.cat` `.ps1` `.psm1`，SHA-256
-- **時間戳記**：RFC 3161（預設 `http://timestamp.digicert.com`），憑證過期後簽章仍有效
+- **時間戳記**：RFC 3161（預設 `http://timestamp.digicert.com`，自訂伺服器用 `--timestamp=URL`），憑證過期後簽章仍有效
 - **批次**：一次處理多個檔案或整個資料夾；單一檔案失敗不影響其他檔案
 - **驗證**：顯示簽章狀態、簽章者、時間戳記與憑證鏈
 - **產生自簽憑證**：帶程式碼簽章用途的 RSA 憑證，匯出 `.pfx`，可選擇加入本機信任清單以便測試
 - **憑證來源**：`.pfx` 檔，或 Windows 憑證存放區（以指紋指定）
 - 直接呼叫 Windows 原生簽章 API，**不需要安裝 Windows SDK / signtool**
 - 簽章失敗時原檔不會被改動；不儲存任何密碼
+- 簽章是以新檔取代原檔（處理完成後才換掉），所以原檔案上的自訂 ACL、硬連結不會保留；正在執行中的檔案無法簽章，請先關閉它
 
 ## 下載
 
@@ -41,8 +42,8 @@ code-signer new-cert --cn "My Company Test" --out test.pfx --password-env PFX_PW
 # 簽章（含時間戳記），資料夾遞迴
 code-signer sign .\dist -r --pfx test.pfx --password-env PFX_PW --timestamp
 
-# 使用憑證存放區中的憑證
-code-signer sign app.exe --thumbprint A1B2C3... --timestamp
+# 使用憑證存放區中的憑證，自訂時間戳記伺服器（注意要用等號）
+code-signer sign app.exe --thumbprint A1B2C3... --timestamp=http://timestamp.example.com
 
 # 驗證，並輸出 JSON
 code-signer verify app.exe --json
@@ -87,13 +88,14 @@ A Windows Authenticode code signing tool. One exe with both a GUI and a CLI; the
 ### Features
 
 - **Sign** `.exe` `.dll` `.sys` `.ocx` `.msi` `.cab` `.cat` `.ps1` `.psm1` with SHA-256
-- **Timestamp** via RFC 3161 (default `http://timestamp.digicert.com`) so signatures outlive the certificate
+- **Timestamp** via RFC 3161 (default `http://timestamp.digicert.com`; use `--timestamp=URL` for a custom server) so signatures outlive the certificate
 - **Batch** many files or whole folders; one failure does not stop the rest
 - **Verify** status, signer, timestamp and certificate chain
 - **Create self-signed certificates** (RSA, Code Signing EKU) as `.pfx`, optionally trusted on this PC for testing
 - **Certificate sources**: a `.pfx` file or the Windows certificate store (by thumbprint)
 - Calls the native Windows signing APIs — **no Windows SDK / signtool required**
 - The original file is untouched if signing fails; passwords are never stored
+- Signing replaces the file with a newly written one, so custom ACLs or hard links on the original are not preserved; a file that is currently running cannot be signed — close it first
 
 ### Download
 
@@ -117,8 +119,8 @@ code-signer new-cert --cn "My Company Test" --out test.pfx --password-env PFX_PW
 # Sign a folder recursively with a timestamp
 code-signer sign .\dist -r --pfx test.pfx --password-env PFX_PW --timestamp
 
-# Use a certificate from the Windows store
-code-signer sign app.exe --thumbprint A1B2C3... --timestamp
+# Use a certificate from the Windows store, with a custom timestamp server (note the "=")
+code-signer sign app.exe --thumbprint A1B2C3... --timestamp=http://timestamp.example.com
 
 # Verify and print JSON
 code-signer verify app.exe --json

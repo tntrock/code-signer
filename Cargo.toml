@@ -6,6 +6,7 @@ description = "Windows Authenticode 程式碼簽章工具（GUI + CLI）"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/tntrock/code-signer"
 build = "build.rs"
+publish = false
 
 [lib]
 name = "code_signer"

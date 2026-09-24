@@ -2,5 +2,6 @@
 
 pub mod cli;
 pub mod core;
+pub mod gui;
 pub mod i18n;
 pub mod settings;

@@ -104,6 +104,7 @@ fn wrong_password_is_setup_error() {
     let dir = tempfile::tempdir().unwrap();
     let pfx = new_cert(dir.path());
     let exe = sample(dir.path(), "app.exe");
+    let before = std::fs::read(&exe).unwrap();
     let o = Command::new(env!("CARGO_BIN_EXE_code-signer"))
         .args([
             "sign",
@@ -119,6 +120,9 @@ fn wrong_password_is_setup_error() {
         .unwrap();
     assert_eq!(o.status.code(), Some(2));
     assert_eq!(json(&o)["error"]["status"], "pfx_wrong_password");
+    // spec §9 item 5：憑證/前置錯誤時，原始檔案必須完全不動。
+    let after = std::fs::read(&exe).unwrap();
+    assert_eq!(before, after, "sample exe was modified after a setup error");
 }
 
 #[test]
@@ -165,6 +169,17 @@ fn new_cert_refuses_to_overwrite_without_force() {
     let mut forced = args.to_vec();
     forced.push("--force");
     assert_eq!(run(&forced).status.code(), Some(0));
+}
+
+#[test]
+fn verify_empty_dir_is_a_setup_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let o = run(&["verify", dir.path().to_str().unwrap()]);
+    assert_eq!(o.status.code(), Some(2), "{}", stdout(&o));
+
+    let o = run(&["verify", dir.path().to_str().unwrap(), "--json"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert_eq!(json(&o)["error"]["status"], "no_files");
 }
 
 #[test]

@@ -118,6 +118,10 @@ pub fn build_command(t: &'static Strings) -> Command {
                         .value_name("URL")
                         .help(t.h_timestamp)
                         .num_args(0..=1)
+                        // 值必須用 `--timestamp=URL` 這種等號形式給，否則
+                        // `sign --timestamp a.exe --pfx x` 會把下一個路徑
+                        // 貪婪地吃成時間戳記 URL。
+                        .require_equals(true)
                         .default_missing_value(DEFAULT_TIMESTAMP_URL),
                 )
                 .arg(recursive.clone()),
@@ -307,13 +311,22 @@ pub fn run(args: Vec<OsString>) -> i32 {
 }
 
 /// 取得密碼：`--password-env` 指定的環境變數，否則在終端機提示輸入。
+///
+/// 提示文字用 `eprint!` 印到 stderr（Rust 對 stderr 使用 WriteConsoleW，在主控台上
+/// 正確顯示中文），再呼叫 `rpassword::read_password()`；不能用
+/// `rpassword::prompt_password`，它是用 WriteFile 寫原始 UTF-8 位元組到
+/// CONOUT$，在預設 CP950 主控台上繁體中文提示會變成亂碼。stdout 維持乾淨，
+/// 不受影響（`--json` 仍可正常解析）。
 fn read_password(m: &ArgMatches, t: &Strings, prompt: &str) -> Result<Secret, String> {
     if let Some(var) = m.get_one::<String>("password-env") {
         return std::env::var(var)
             .map(Secret::new)
             .map_err(|_| format!("{}: {var}", t.err_env_missing));
     }
-    rpassword::prompt_password(prompt)
+    use std::io::Write as _;
+    eprint!("{prompt}");
+    let _ = std::io::stderr().flush();
+    rpassword::read_password()
         .map(Secret::new)
         .map_err(|e| e.to_string())
 }
@@ -333,6 +346,10 @@ fn cmd_sign(m: &ArgMatches, t: &'static Strings, json: bool) -> i32 {
         command: "sign",
         results: Vec::new(),
     };
+    let files = paths_of(m);
+    if files.is_empty() {
+        return out.setup_error(t.err_no_files.into(), "no_files");
+    }
     let source = if let Some(pfx) = m.get_one::<PathBuf>("pfx") {
         let password = match read_password(m, t, t.prompt_password) {
             Ok(p) => p,
@@ -362,7 +379,6 @@ fn cmd_sign(m: &ArgMatches, t: &'static Strings, json: bool) -> i32 {
     let opts = SignOptions {
         timestamp_url: m.get_one::<String>("timestamp").cloned(),
     };
-    let files = paths_of(m);
     let cancel = AtomicBool::new(false);
     let mut out = out;
     run_batch(
@@ -395,6 +411,9 @@ fn cmd_verify(m: &ArgMatches, t: &'static Strings, json: bool) -> i32 {
         results: Vec::new(),
     };
     let files = paths_of(m);
+    if files.is_empty() {
+        return out.setup_error(t.err_no_files.into(), "no_files");
+    }
     let cancel = AtomicBool::new(false);
     run_batch(&files, &cancel, verify_file, |_, r| {
         let path = r.path.display().to_string();
@@ -543,6 +562,41 @@ mod tests {
         assert_eq!(
             sm.get_one::<String>("timestamp").map(String::as_str),
             Some(DEFAULT_TIMESTAMP_URL)
+        );
+    }
+
+    #[test]
+    fn bare_timestamp_does_not_swallow_the_next_path() {
+        let cmd = || build_command(Lang::En.strings());
+        let m = cmd()
+            .try_get_matches_from(["cs", "sign", "--timestamp", "a.exe", "--pfx", "p.pfx"])
+            .unwrap();
+        let (_, sm) = m.subcommand().unwrap();
+        let paths: Vec<String> = sm
+            .get_many::<PathBuf>("paths")
+            .unwrap()
+            .map(|p| p.display().to_string())
+            .collect();
+        assert!(paths.contains(&"a.exe".to_string()), "{paths:?}");
+        assert_eq!(
+            sm.get_one::<String>("timestamp").map(String::as_str),
+            Some(DEFAULT_TIMESTAMP_URL)
+        );
+
+        let m = cmd()
+            .try_get_matches_from([
+                "cs",
+                "sign",
+                "a.exe",
+                "--pfx",
+                "p.pfx",
+                "--timestamp=http://x",
+            ])
+            .unwrap();
+        let (_, sm) = m.subcommand().unwrap();
+        assert_eq!(
+            sm.get_one::<String>("timestamp").map(String::as_str),
+            Some("http://x")
         );
     }
 }

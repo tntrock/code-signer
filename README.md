@@ -75,7 +75,7 @@ cargo test -- --ignored   # 需要網路的時間戳記測試
 
 ## 授權
 
-MIT 或 Apache-2.0，擇一使用。
+MIT，詳見 [LICENSE](LICENSE)。
 
 ---
 
@@ -152,4 +152,4 @@ cargo test -- --ignored   # networked timestamp test
 
 ### License
 
-Licensed under either MIT or Apache-2.0, at your option.
+Licensed under the MIT License. See [LICENSE](LICENSE).

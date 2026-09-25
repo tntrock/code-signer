@@ -288,7 +288,7 @@ Win32 資源（`CERT_CONTEXT`、`HCERTSTORE`、WinTrust 狀態）以 RAII 包裝
 
 ## 10. Repo 與 CI
 
-- 授權：`MIT OR Apache-2.0`（`LICENSE-MIT`、`LICENSE-APACHE`）
+- 授權：MIT（`LICENSE`）
 - `README.md`：單一檔案，中文在上、英文在下；內容包含功能、下載、GUI 截圖、CLI 用法、自簽憑證的限制說明（只在信任該憑證的電腦上有效，SmartScreen 不會因此信任）
 - `.gitignore`：`/target`（`Cargo.lock` 納入版控，因為這是執行檔專案）
 - GitHub Actions（`windows-latest`）：

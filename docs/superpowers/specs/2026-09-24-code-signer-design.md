@@ -37,7 +37,7 @@
 | 檔案對話框 | `rfd` | 同上 |
 | CLI | `clap`（derive） | 標準做法 |
 | Win32 API | `windows` crate | 官方型別綁定：`SignerSignEx2`、`WinVerifyTrust`、CryptoAPI 憑證存放區 |
-| 產生憑證 | `rsa` + `rcgen` + `p12-keystore` | 純 Rust：`rsa` 產生 RSA 金鑰（`rcgen` 預設後端 ring 無法產生 RSA 金鑰，而 aws-lc-rs 後端在 Windows 需 cmake/nasm），`rcgen` 簽出 X.509，`p12-keystore` 匯出 PKCS#12；`rsa` 與 `p12-keystore` 皆已用於 `cert-converter` |
+| 產生憑證 | `rsa` + `rcgen` + `p12-keystore` | 不需 OpenSSL，但**並非全為純 Rust**：`rcgen` 預設的 `ring` 後端含 C / 組合語言（建置時由 MSVC 編譯）。`rsa` 產生 RSA 金鑰（`rcgen` 預設後端 ring 無法產生 RSA 金鑰，而 aws-lc-rs 後端在 Windows 需 cmake/nasm），`rcgen` 簽出 X.509，`p12-keystore` 匯出 PKCS#12；`rsa` 與 `p12-keystore` 皆已用於 `cert-converter` |
 | 其他 | `serde` / `serde_json`（設定檔、`--json`）、`thiserror`（core 錯誤）、`x509-parser` + `sha1`/`sha2`（憑證摘要與指紋）、`zeroize`（密碼）、`rpassword`（CLI 密碼輸入） | |
 
 簽章與驗證**直接呼叫 Windows 原生 API**，不依賴 PowerShell 或 Windows SDK 的 `signtool`。

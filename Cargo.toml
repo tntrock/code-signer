@@ -25,7 +25,9 @@ rfd = "0.17"
 clap = { version = "4.6", features = ["string"] }
 rpassword = "7"
 
-# ---- 憑證產生（純 Rust）----
+# ---- 憑證產生 ----
+# 注意：rcgen 預設的 ring 後端含 C / 組合語言（建置時由 MSVC 編譯），並非純 Rust；
+# rsa、p12-keystore、x509-parser 等其餘套件為純 Rust
 rsa = "0.9"
 rcgen = "0.14"
 p12-keystore = "0.3"

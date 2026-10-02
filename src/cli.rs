@@ -445,8 +445,7 @@ fn cmd_new_cert(m: &ArgMatches, t: &'static Strings, json: bool) -> i32 {
         command: "new-cert",
         results: Vec::new(),
     };
-    let password = if m.contains_id("password-env") && m.get_one::<String>("password-env").is_some()
-    {
+    let password = if m.get_one::<String>("password-env").is_some() {
         match read_password(m, t, t.prompt_new_password) {
             Ok(p) => p,
             Err(msg) => return out.setup_error(msg, "password_unavailable"),

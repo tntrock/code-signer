@@ -190,15 +190,15 @@ impl SignTab {
         }
     }
 
-    /// 開始簽章；回傳 true 表示設定有變動、應儲存。
-    fn start(&mut self, ctx: &egui::Context) -> bool {
+    /// 開始簽章。
+    fn start(&mut self, ctx: &egui::Context) {
         if self.rows.is_empty() {
             self.notice = Some(Notice::NeedFiles);
-            return false;
+            return;
         }
         let Some(source) = self.cert_source() else {
             self.notice = Some(Notice::NeedCert);
-            return false;
+            return;
         };
         self.notice = None;
         let paths: Vec<PathBuf> = self.rows.iter().map(|r| r.path.clone()).collect();
@@ -241,7 +241,6 @@ impl SignTab {
             ctx.request_repaint();
         });
         self.worker = Some(Worker { rx, cancel });
-        true
     }
 
     fn refresh_store(&mut self) {
@@ -258,11 +257,10 @@ impl SignTab {
         self.store_certs = Some(list);
     }
 
-    /// 繪製分頁；回傳 true 表示設定有變動、應儲存。
-    pub fn ui(&mut self, ui: &mut egui::Ui, t: &Strings) -> bool {
+    /// 繪製分頁。
+    pub fn ui(&mut self, ui: &mut egui::Ui, t: &Strings) {
         self.poll();
         let busy = self.is_busy();
-        let mut settings_changed = false;
 
         match file_list::toolbar(ui, t, !busy) {
             ListAction::Add(paths) => self.add_paths(paths),
@@ -424,7 +422,7 @@ impl SignTab {
             };
             ui.add(
                 egui::ProgressBar::new(fraction)
-                    .text(t.progress(done, total))
+                    .text(format!("{done} / {total}"))
                     .desired_width(ui.available_width() - 130.0),
             );
             if let Some(w) = &self.worker {
@@ -435,7 +433,7 @@ impl SignTab {
                 .button(egui::RichText::new(t.start_sign).strong())
                 .clicked()
             {
-                settings_changed = self.start(ui.ctx());
+                self.start(ui.ctx());
             }
         });
 
@@ -455,6 +453,5 @@ impl SignTab {
             }
             None => {}
         }
-        settings_changed
     }
 }

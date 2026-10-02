@@ -1,47 +1,27 @@
 //! 核心錯誤類型，以及 Windows HRESULT / I/O 錯誤到 `CoreError` 的對應。
 
 /// 核心層的所有錯誤。只描述「發生了什麼」，轉成使用者可讀的文字由 `i18n` 負責。
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreError {
-    #[error("wrong .pfx password")]
     PfxWrongPassword,
-    #[error("not a valid PKCS#12 file")]
     PfxInvalid,
-    #[error("no certificate with a private key in .pfx")]
     PfxNoSigningCert,
-    #[error("invalid thumbprint")]
     InvalidThumbprint,
-    #[error("certificate not found in store")]
     CertNotFound,
-    #[error("certificate has no private key")]
     CertNoPrivateKey,
-    #[error("certificate is not valid for code signing")]
     CertNotCodeSigning,
-    #[error("certificate expired")]
     CertExpired,
-    #[error("certificate not yet valid")]
     CertNotYetValid,
-    #[error("file not found")]
     FileNotFound,
-    #[error("file is in use")]
     FileInUse,
-    #[error("access denied")]
     AccessDenied,
-    #[error("unsupported file type")]
     UnsupportedFileType,
-    #[error("timestamp server failed (0x{0:08X})")]
     TimestampFailed(u32),
-    #[error("cancelled by user")]
     UserCancelled,
-    #[error("output file already exists")]
     OutputExists,
-    #[error("common name is empty")]
     EmptyCommonName,
-    #[error("password too short")]
     PasswordTooShort,
-    #[error("invalid validity period")]
     InvalidValidity,
-    #[error("Win32 error 0x{hresult:08X}: {message}")]
     Win32 { hresult: u32, message: String },
 }
 

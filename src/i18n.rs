@@ -227,10 +227,6 @@ impl Strings {
         }
     }
 
-    pub fn progress(&self, done: usize, total: usize) -> String {
-        format!("{done} / {total}")
-    }
-
     pub fn summary(&self, total: usize, ok: usize, failed: usize) -> String {
         match self.lang {
             Lang::ZhTw => format!("共 {total} 個檔案：成功 {ok}、失敗 {failed}"),

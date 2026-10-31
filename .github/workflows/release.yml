@@ -12,8 +12,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Test
         run: cargo test
       - name: Build
@@ -23,7 +25,7 @@ jobs:
         run: |
           $hash = (Get-FileHash target/release/code-signer.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  code-signer.exe" | Out-File -Encoding ascii target/release/code-signer.exe.sha256
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
             target/release/code-signer.exe

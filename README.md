@@ -1,6 +1,13 @@
 # code-signer
 
 [![CI](https://github.com/tntrock/code-signer/actions/workflows/ci.yml/badge.svg)](https://github.com/tntrock/code-signer/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/tntrock/code-signer/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/tntrock/code-signer/security/code-scanning)
+[![codecov](https://codecov.io/gh/tntrock/code-signer/graph/badge.svg)](https://codecov.io/gh/tntrock/code-signer)
+[![Release](https://img.shields.io/github/v/release/tntrock/code-signer)](https://github.com/tntrock/code-signer/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/tntrock/code-signer/total)](https://github.com/tntrock/code-signer/releases)
+[![License: MIT](https://img.shields.io/github/license/tntrock/code-signer)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)
+![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)
 
 **繁體中文** · [English](#english)
 

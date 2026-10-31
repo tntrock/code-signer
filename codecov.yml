@@ -1,3 +1,4 @@
-# egui 畫面程式碼沒有自動化測試，排除以免拉低覆蓋率；核心邏輯與 CLI 都有測
+# Keep ASCII only: the Codecov CLI on Windows reads this file as cp1252.
+# The egui screens have no automated tests; core and CLI are covered.
 ignore:
   - "src/gui/**"

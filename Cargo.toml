@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 # ---- GUI ----
-eframe = "0.36"
+eframe = "0.37"
 rfd = "0.17"
 
 # ---- CLI ----
@@ -30,10 +30,10 @@ rpassword = "7"
 # rsa、p12-keystore、x509-parser 等其餘套件為純 Rust
 rsa = "0.9"
 rcgen = "0.14"
-p12-keystore = "0.3"
+p12-keystore = "0.4"
 x509-parser = "0.18"
-sha1 = "0.10"
-sha2 = "0.10"
+sha1 = "0.11"
+sha2 = "0.11"
 time = { version = "0.3", features = ["formatting", "macros"] }
 
 # ---- 共用 ----

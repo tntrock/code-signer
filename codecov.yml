@@ -1,0 +1,11 @@
+# Keep ASCII only: the Codecov CLI on Windows reads this file as cp1252.
+# The egui screens have no automated tests; core and CLI are covered.
+ignore:
+  - "src/gui/**"
+coverage:
+  status:
+    # Lines that only run when the GUI window opens can't be hit in CI,
+    # so report patch coverage without failing the PR.
+    patch:
+      default:
+        informational: true

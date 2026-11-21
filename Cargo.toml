@@ -19,7 +19,7 @@ path = "src/main.rs"
 [dependencies]
 # ---- GUI ----
 eframe = "0.37"
-rfd = "0.17"
+rfd = "0.18"
 
 # ---- CLI ----
 clap = { version = "4.6", features = ["string"] }
